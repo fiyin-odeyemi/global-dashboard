@@ -1,0 +1,183 @@
+---
+title: "Global Death & Homelessness Dashboard"
+format: 
+  dashboard:
+    orientation: rows
+---
+
+```{python}
+import pandas as pd
+import plotly.express as px
+
+# Load data
+df_deaths = pd.read_csv("data/ndisasd_noep_tot (1).csv")
+df_homeless = pd.read_csv("data/hmless_nd.csv")
+
+# Reshape (wide → long)
+df_deaths_long = df_deaths.melt(
+    id_vars=["geo", "name"],
+    var_name="year",
+    value_name="deaths"
+)
+
+df_homeless_long = df_homeless.melt(
+    id_vars=["geo", "name"],
+    var_name="year",
+    value_name="homeless"
+)
+
+# Clean data
+df_deaths_long["year"] = pd.to_numeric(df_deaths_long["year"], errors="coerce")
+df_homeless_long["year"] = pd.to_numeric(df_homeless_long["year"], errors="coerce")
+
+df_deaths_long = df_deaths_long.dropna(subset=["year", "deaths"])
+df_homeless_long = df_homeless_long.dropna(subset=["year", "homeless"])
+
+df_deaths_long = df_deaths_long[df_deaths_long["year"] >= 1950]
+df_homeless_long = df_homeless_long[df_homeless_long["year"] >= 1950]
+
+# Merge datasets
+df = pd.merge(
+    df_deaths_long,
+    df_homeless_long,
+    on=["geo", "name", "year"],
+    how="inner"
+)
+
+# Key metrics
+total_deaths = df["deaths"].sum()
+total_homeless = df["homeless"].sum()
+countries_count = df["name"].nunique()
+
+# Top 10
+top_deaths = df.groupby("name")["deaths"].sum().sort_values(ascending=False).head(10).reset_index()
+top_homeless = df.groupby("name")["homeless"].sum().sort_values(ascending=False).head(10).reset_index()
+```
+
+# Death Analysis {data-navmenu="Deaths"}
+## Row
+### Total Deaths
+
+::: {.value-box style="background-color:#4e79a7; color:white;"}
+
+**Total Deaths**
+
+```{python}
+f"{total_deaths:,.0f}"
+```
+
+:::
+
+### Countries
+
+::: {.value-box style="background-color:#59a14f; color:white;"}
+
+**Countries Covered**
+
+```{python}
+countries_count
+``` 
+
+:::
+
+## Row
+### Column
+```{python}
+px.line(
+    df_deaths_long[df_deaths_long["name"].isin(top_deaths["name"])],
+    x="year",
+    y="deaths",
+    color="name"
+)
+```
+
+### Column
+```{python}
+px.bar(
+    top_deaths,
+    x="name",
+    y="deaths",
+    color_discrete_sequence=["#4e79a7"]
+)
+```
+
+## Row
+### Key Insight
+
+Deaths vary across countries, with a few nations contributing the highest totals.
+
+# Homelessness Analysis {data-navmenu="Homelessness"}
+## Row
+### Total Homeless
+
+::: {.value-box style="background-color:#e15759; color:white;"}
+
+**Total Homelessness**
+
+```{python}
+f"{total_homeless:,.0f}"
+```
+
+:::
+
+### Countries
+
+::: {.value-box style="background-color:#76b7b2; color:white;"}
+
+**Countries Covered**
+
+```{python}
+countries_count
+```
+
+:::
+
+## Row
+### Column
+```{python}
+px.line(
+    df_homeless_long[df_homeless_long["name"].isin(top_homeless["name"])],
+    x="year",
+    y="homeless",
+    color="name"
+)
+```
+
+### Column
+```{python}
+px.bar(
+    top_homeless,
+    x="name",
+    y="homeless",
+    color_discrete_sequence=["#e15759"]
+)
+```
+
+## Row
+### Key Insight
+
+Homelessness levels differ widely, with some countries showing steady increases.
+
+# Relationship Analysis {data-navmenu="Relationship"}
+## Row
+### Column
+```{python}
+px.scatter(
+    df.sample(min(2000, len(df))),
+    x="deaths",
+    y="homeless",
+    color="name",
+    hover_data=["year"]
+)
+```
+
+### Column
+```{python}
+px.choropleth(
+    df,
+    locations="geo",
+    color="deaths",
+    hover_name="name",
+    animation_frame="year"
+)
+```
